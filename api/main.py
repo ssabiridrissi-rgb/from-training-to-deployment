@@ -87,7 +87,8 @@ def create_app(model_dir: str | None = None, db_path: str | None = None) -> Fast
         return {"status": "ok", "model_version": model.version, "labels": model.labels,
                 "examples": model.examples}
 
-    @app.post("/predict", response_model=PredictResponse)
+    @app.post("/predict", response_model=PredictResponse,
+              responses={500: {"description": "Erreur pendant l'inférence"}})
     def predict(req: PredictRequest):
         try:
             return run_prediction(req.text, "api")

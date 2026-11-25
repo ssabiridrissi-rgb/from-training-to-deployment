@@ -14,7 +14,7 @@ Autre modèle provisoire possible, entraîné en français (Allociné + Amazon),
 À lancer sur Colab ou sur ton Mac (besoin de torch + transformers + onnx + onnxruntime) :
     pip install -r requirements-export.txt
 
-Produit dans --out :
+Produit dans models/ :
     model.onnx, tokenizer.json, config.json   (+ vérifie que ONNX donne les mêmes résultats que PyTorch)
 """
 from __future__ import annotations
@@ -51,17 +51,21 @@ class LogitsOnly(torch.nn.Module):
         return self.m(input_ids=input_ids, attention_mask=attention_mask).logits
 
 
+# Dossier de sortie fixe : c'est là que l'API va chercher le modèle.
+# (Pas d'argument --out : un chemin venant de la ligne de commande = risque de path traversal.)
+MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--checkpoint", default=PLACEHOLDER, help="nom HF ou dossier local")
-    p.add_argument("--out", default="models")
     p.add_argument("--version", default="v0-placeholder")
     p.add_argument("--labels", default=None, help='ex: "négatif,positif" (sinon id2label du modèle)')
     p.add_argument("--max-length", type=int, default=512, help="doit être celui de l'entraînement")
     p.add_argument("--quantize", action="store_true", help="quantization dynamique INT8")
     a = p.parse_args()
 
-    out = Path(a.out)
+    out = MODELS_DIR
     out.mkdir(parents=True, exist_ok=True)
 
     tok = AutoTokenizer.from_pretrained(a.checkpoint)
@@ -72,14 +76,14 @@ def main():
 
     # 2) Export ONNX
     dummy = tok("export example", return_tensors="pt")
-    export_kwargs = dict(
-        input_names=["input_ids", "attention_mask"],
-        output_names=["logits"],
-        dynamic_axes={"input_ids": {0: "batch", 1: "seq"},
-                      "attention_mask": {0: "batch", 1: "seq"},
-                      "logits": {0: "batch"}},
-        opset_version=17,
-    )
+    export_kwargs = {
+        "input_names": ["input_ids", "attention_mask"],
+        "output_names": ["logits"],
+        "dynamic_axes": {"input_ids": {0: "batch", 1: "seq"},
+                         "attention_mask": {0: "batch", 1: "seq"},
+                         "logits": {0: "batch"}},
+        "opset_version": 17,
+    }
     onnx_path = out / "model.onnx"
     wrapped = LogitsOnly(model)
     args = (dummy["input_ids"], dummy["attention_mask"])

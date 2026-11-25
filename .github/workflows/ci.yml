@@ -31,7 +31,7 @@ jobs:
       - name: Faux modèle pour que l'image se construise
         run: |
           pip install onnx tokenizers numpy
-          python scripts/make_dummy_model.py models
+          python scripts/make_dummy_model.py
       - name: Construire l'image Docker
         run: docker build -f docker/Dockerfile -t sentiment-api .
       - name: Lancer le conteneur et tester /predict

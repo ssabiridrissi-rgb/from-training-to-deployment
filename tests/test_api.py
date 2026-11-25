@@ -65,7 +65,8 @@ def test_ui_and_docs(client):
     assert client.get("/ui/").status_code == 200
     assert client.get("/docs").status_code == 200
     home = client.get("/")
-    assert home.status_code == 200 and "Critique-mètre" in home.text
+    assert home.status_code == 200
+    assert "Critique-mètre" in home.text
 
 
 def test_drift_detects_short_texts(client):

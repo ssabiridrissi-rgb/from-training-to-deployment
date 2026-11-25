@@ -3,12 +3,11 @@
 Il sert uniquement aux tests automatiques (pytest + CI GitHub Actions), pour ne pas
 dépendre du vrai modèle de ~250 Mo. Il "compte" les mots positifs et négatifs.
 
-    python scripts/make_dummy_model.py models
+    python scripts/make_dummy_model.py      (écrit dans models/)
 """
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -18,11 +17,15 @@ from tokenizers import Tokenizer, models, normalizers, pre_tokenizers, processor
 
 POS = ["magnifique", "adoré", "excellent", "génial", "superbe", "bon", "drôle"]
 NEG = ["ennuyeux", "décevant", "nul", "mauvais", "horrible", "raté", "lent"]
+CLS, SEP = "[CLS]", "[SEP]"
+# Quand on lance le script, il écrit toujours dans models/ (dossier fixe, pas d'argument).
+# Les tests, eux, appellent build() directement avec un dossier temporaire.
+MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 
 
 def build(out: Path) -> Path:
     out.mkdir(parents=True, exist_ok=True)
-    vocab = {"[PAD]": 0, "[UNK]": 1, "[CLS]": 2, "[SEP]": 3}
+    vocab = {"[PAD]": 0, "[UNK]": 1, CLS: 2, SEP: 3}
     for w in POS + NEG + ["ce", "film", "est", "un", "le", "la"]:
         vocab.setdefault(w, len(vocab))
 
@@ -31,7 +34,7 @@ def build(out: Path) -> Path:
     tk.normalizer = normalizers.Lowercase()
     tk.pre_tokenizer = pre_tokenizers.Whitespace()
     tk.post_processor = processors.TemplateProcessing(
-        single="[CLS] $A [SEP]", special_tokens=[("[CLS]", 2), ("[SEP]", 3)]
+        single=f"{CLS} $A {SEP}", special_tokens=[(CLS, 2), (SEP, 3)]
     )
     tk.save(str(out / "tokenizer.json"))
 
@@ -41,7 +44,7 @@ def build(out: Path) -> Path:
         table[vocab[w]] = [0.0, 2.0]
     for w in NEG:
         table[vocab[w]] = [2.0, 0.0]
-    table[vocab["[CLS]"]] = [0.1, 0.0]  # léger biais négatif si aucun mot connu
+    table[vocab[CLS]] = [0.1, 0.0]  # léger biais négatif si aucun mot connu
 
     # Graphe ONNX : logits = somme(table[input_ids] * attention_mask)
     nodes = [
@@ -76,4 +79,4 @@ def build(out: Path) -> Path:
 
 
 if __name__ == "__main__":
-    print(build(Path(sys.argv[1] if len(sys.argv) > 1 else "tests/dummy_model")).resolve())
+    print(build(MODELS_DIR))

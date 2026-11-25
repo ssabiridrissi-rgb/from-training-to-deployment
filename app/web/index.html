@@ -213,8 +213,8 @@
   .history li button:hover { background: #242d4f; }
   .history .snip { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
   .pill { flex: none; font-size: 0.8rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
-  .pill.pos { background: rgba(47,179,126,.18); color: #7fe0b5; }
-  .pill.neg { background: rgba(229,72,77,.18); color: #ffa0a3; }
+  .pill.pos { background: #173a37; color: #7fe0b5; }
+  .pill.neg { background: #3a1f2b; color: #ffa0a3; }
   .pill.neu, .pill.other { background: rgba(141,150,181,.2); color: var(--text); }
   .history .none { color: var(--muted); font-size: 0.92rem; }
   .drift-detail { color: var(--muted); font-size: 0.92rem; margin: 10px 0 0; max-width: 70ch; }
@@ -447,7 +447,9 @@
 
     // Le moment orchestré : le projecteur, le curseur, puis le verdict
     const theatre = $("theatre");
-    theatre.classList.remove("projecting"); void theatre.offsetWidth; theatre.classList.add("projecting");
+    theatre.classList.remove("projecting");
+    theatre.getBoundingClientRect(); // force un reflow pour relancer l'animation
+    theatre.classList.add("projecting");
 
     const w = $("vWord");
     w.className = "v-word " + k;
@@ -546,8 +548,17 @@
       const d = s.drift || {};
       const el = $("drift");
       const alert = (d.status || "").startsWith("ALERTE");
-      el.className = "drift" + (alert ? " alert" : d.status === "ok" ? " ok" : "");
-      el.textContent = alert ? "Data drift possible" : d.status === "ok" ? "Pas de data drift détecté" : "Data drift : " + (d.status || "en attente");
+      let driftClass = "";
+      let driftText = "Data drift : " + (d.status || "en attente");
+      if (alert) {
+        driftClass = " alert";
+        driftText = "Data drift possible";
+      } else if (d.status === "ok") {
+        driftClass = " ok";
+        driftText = "Pas de data drift détecté";
+      }
+      el.className = "drift" + driftClass;
+      el.textContent = driftText;
       const det = [];
       if (d.current_mean_tokens != null)
         det.push(`Les textes reçus font en moyenne ${d.current_mean_tokens} tokens, contre ${d.reference_mean_tokens} pour les critiques d'entraînement.`);
