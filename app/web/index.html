@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Critique-mètre · analyse de sentiment de critiques de films</title>
+<meta name="description" content="Un modèle DistilBERT lit une critique de film en français et dit si elle est positive ou négative.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 34 34%27%3E%3Crect x=%274%27 y=%2712%27 width=%2720%27 height=%2714%27 rx=%273%27 fill=%27%23f5b83d%27/%3E%3Cpath d=%27M24 16l7-3v12l-7-3z%27 fill=%27%23f5b83d%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --night: #141a2e;      /* la salle obscure */
+    --night-2: #1c2440;    /* surfaces dans la salle */
+    --line: #2d3658;
+    --text: #e6eaf5;
+    --muted: #98a1c0;
+    --screen: #eef1f7;     /* l'écran de projection */
+    --screen-ink: #1b2238;
+    --amber: #f5b83d;      /* la lumière du projecteur */
+    --pos: #2fb37e;
+    --pos-ink: #137a52;
+    --neg: #e5484d;
+    --neg-ink: #b8282e;
+    --neu: #8d96b5;
+    --neu-ink: #4f5878;
+    --font: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; overflow-x: hidden;
+    background: var(--night);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--amber); text-underline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+
+  .wrap { width: min(1180px, 100% - 40px); margin-inline: auto; }
+
+  /* ---------- En-tête ---------- */
+  .top {
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    padding: 22px 0; border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); }
+  .brand svg { flex: none; }
+  .brand strong { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+  .top nav { display: flex; align-items: center; gap: 20px; font-size: 0.95rem; }
+  .top nav a { color: var(--muted); text-decoration: none; }
+  .top nav a:hover { color: var(--text); }
+  .model-chip {
+    font-size: 0.85rem; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+  }
+  .model-chip b { color: var(--text); font-weight: 500; }
+
+  /* ---------- Titre ---------- */
+  .intro { padding: 48px 0 28px; max-width: 62ch; }
+  .intro h1 {
+    font-size: clamp(2.4rem, 5.4vw, 4.4rem); line-height: 0.98; letter-spacing: -0.035em;
+    font-weight: 800; margin: 0 0 16px;
+    font-variation-settings: "opsz" 96;
+  }
+  .intro p { color: var(--muted); font-size: 1.15rem; margin: 0; }
+
+  /* ---------- Studio : saisie + écran ---------- */
+  .studio {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 32px;
+    align-items: stretch; padding-bottom: 40px;
+  }
+  .composer { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .composer label { font-weight: 700; font-size: 1.05rem; }
+  textarea {
+    width: 100%; min-height: 230px; resize: vertical;
+    background: var(--night-2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px 18px; font: inherit; font-size: 1.05rem; line-height: 1.55;
+  }
+  textarea::placeholder { color: #6c7597; }
+  textarea:focus { border-color: var(--amber); outline: none; box-shadow: 0 0 0 3px rgba(245,184,61,.25); }
+  .meta-row { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.88rem; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; }
+  .examples p { width: 100%; margin: 4px 0 0; color: var(--muted); font-size: 0.92rem; }
+  .chip {
+    font: inherit; font-size: 0.9rem; cursor: pointer;
+    background: transparent; color: var(--text);
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
+    max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chip:hover { border-color: var(--muted); }
+  .go {
+    align-self: flex-start; margin-top: 6px;
+    font: inherit; font-weight: 700; font-size: 1.05rem; cursor: pointer;
+    background: var(--amber); color: #2a1d00; border: 0; border-radius: 12px;
+    padding: 14px 26px;
+  }
+  .go:hover { filter: brightness(1.06); }
+  .go[disabled] { opacity: .6; cursor: progress; }
+  .error { color: #ff8a8e; min-height: 1.5em; margin: 0; font-size: 0.95rem; }
+
+  /* L'écran : la seule surface claire de la page */
+  .theatre { position: relative; }
+  .beam {
+    position: absolute; inset: -48px; border-radius: 40px; pointer-events: none;
+    background: radial-gradient(closest-side, rgba(245,184,61,.22), rgba(245,184,61,.06) 70%, transparent);
+    filter: blur(14px); opacity: .5; transition: opacity .6s ease;
+  }
+  .theatre.projecting .beam { animation: flicker .9s ease-out; opacity: 1; }
+  @keyframes flicker { 0% { opacity: .2 } 15% { opacity: 1 } 25% { opacity: .45 } 40% { opacity: 1 } 100% { opacity: 1 } }
+  .screen {
+    position: relative; height: 100%; min-height: 380px;
+    background: var(--screen); color: var(--screen-ink);
+    border-radius: 6px; padding: 34px 36px 30px;
+    box-shadow: 0 30px 80px -30px rgba(245,184,61,.35);
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .empty { color: #6a7392; font-size: 1.15rem; max-width: 30ch; margin: 0; }
+  .verdict[hidden], .empty[hidden], .warn[hidden] { display: none; }
+  .v-word {
+    margin: 0; font-weight: 800; letter-spacing: -0.045em; line-height: .9;
+    font-size: clamp(3.6rem, 8vw, 6.4rem); font-variation-settings: "opsz" 96;
+  }
+  .v-word.pos { color: var(--pos-ink); }
+  .v-word.neg { color: var(--neg-ink); }
+  .v-word.neu, .v-word.other { color: var(--neu-ink); }
+  .v-conf { margin: 10px 0 26px; font-size: 1.2rem; color: #46506f; }
+  .v-conf b { color: var(--screen-ink); font-variant-numeric: tabular-nums; }
+
+  .scale { margin-bottom: 22px; }
+  .track {
+    position: relative; height: 14px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--neg) 0%, #f0a3a5 35%, #d5d9e6 50%, #9fdcc2 65%, var(--pos) 100%);
+  }
+  .marker {
+    position: absolute; top: 50%; left: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px;
+    background: var(--screen); border: 4px solid var(--screen-ink); border-radius: 50%;
+    transition: left 1s cubic-bezier(.2, .9, .25, 1.15);
+  }
+  .marker.unsure { border-color: #b7791f; animation: wobble 1.2s ease-in-out 1s 2; }
+  @keyframes wobble { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-7px) } 75% { transform: translateX(7px) } }
+  .ends { display: flex; justify-content: space-between; margin-top: 10px; font-weight: 700; font-size: 1.02rem; }
+  .ends span:first-child { color: var(--neg-ink); }
+  .ends span:last-child { color: var(--pos-ink); }
+  .scale-note { margin: 4px 0 0; font-size: 0.85rem; color: #6a7392; }
+
+  .probs { display: grid; gap: 8px; margin: 0; }
+  .prob { display: grid; grid-template-columns: 6.5rem 1fr 4.4rem; align-items: center; gap: 12px; font-size: 0.95rem; }
+  .prob .bar { height: 8px; border-radius: 999px; background: #d9dded; overflow: hidden; }
+  .prob .bar i { display: block; height: 100%; width: 0; border-radius: inherit; transition: width .9s cubic-bezier(.2,.8,.2,1); }
+  .prob .val { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; color: #46506f; }
+  .warn {
+    margin: 18px 0 0; padding: 10px 14px; border-radius: 8px;
+    background: #fff3d9; color: #6b4a00; font-size: 0.95rem;
+  }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 18px 0 0; font-size: 0.9rem; color: #5a6382; }
+  .facts b { color: var(--screen-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Pipeline : une vraie séquence ---------- */
+  .pipeline { padding: 34px 0 44px; border-top: 1px solid var(--line); }
+  h2 { font-size: 1.6rem; letter-spacing: -0.02em; margin: 0 0 6px; font-weight: 700; }
+  .section-lead { color: var(--muted); margin: 0 0 24px; max-width: 64ch; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; counter-reset: step; }
+  .steps li {
+    position: relative; padding: 16px 18px 16px 0; counter-increment: step;
+    border-top: 3px solid var(--line); transition: border-color .3s ease;
+  }
+  .steps li::before {
+    content: counter(step); display: inline-grid; place-items: center;
+    width: 26px; height: 26px; margin: 0 0 10px; border-radius: 50%;
+    background: var(--night-2); color: var(--muted); font-size: 0.85rem; font-weight: 700;
+    transition: background .3s ease, color .3s ease;
+  }
+  .steps b { display: block; font-size: 1.05rem; }
+  .steps span { display: block; color: var(--muted); font-size: 0.9rem; margin-top: 2px; }
+  .steps li.lit { border-top-color: var(--amber); }
+  .steps li.lit::before { background: var(--amber); color: #2a1d00; }
+
+  /* ---------- Monitoring ---------- */
+  .monitor { padding: 36px 0 56px; border-top: 1px solid var(--line); }
+  .mon-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .drift {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 0.95rem;
+    padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted);
+  }
+  .drift::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--neu); }
+  .drift.ok::before { background: var(--pos); }
+  .drift.alert { border-color: rgba(229,72,77,.6); color: #ffb3b5; }
+  .drift.alert::before { background: var(--neg); box-shadow: 0 0 0 4px rgba(229,72,77,.2); }
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; margin: 18px 0 28px; }
+  .kpis div { padding: 14px 18px 14px 0; border-left: 1px solid var(--line); padding-left: 18px; }
+  .kpis div:first-child { border-left: 0; padding-left: 0; }
+  .kpis dt { color: var(--muted); font-size: 0.88rem; }
+  .kpis dd { margin: 4px 0 0; font-size: 1.9rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .kpis dd small { font-size: 0.95rem; font-weight: 500; color: var(--muted); margin-left: 2px; }
+  .mon-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; }
+  figure { margin: 0; }
+  figcaption, .mon-grid h3 { font-size: 0.95rem; color: var(--muted); margin: 0 0 10px; font-weight: 500; }
+  .spark { width: 100%; height: 96px; display: block; background: var(--night-2); border-radius: 10px; }
+  .spark .area { opacity: .12; }
+  .spark .thr { stroke: var(--muted); stroke-dasharray: 3 4; stroke-width: 1; }
+  .history { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .history li button {
+    width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+    background: var(--night-2); color: var(--text); border: 0; border-radius: 8px;
+    padding: 8px 12px; font: inherit; font-size: 0.9rem; cursor: pointer;
+  }
+  .history li button:hover { background: #242d4f; }
+  .history .snip { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  .pill { flex: none; font-size: 0.8rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+  .pill.pos { background: rgba(47,179,126,.18); color: #7fe0b5; }
+  .pill.neg { background: rgba(229,72,77,.18); color: #ffa0a3; }
+  .pill.neu, .pill.other { background: rgba(141,150,181,.2); color: var(--text); }
+  .history .none { color: var(--muted); font-size: 0.92rem; }
+  .drift-detail { color: var(--muted); font-size: 0.92rem; margin: 10px 0 0; max-width: 70ch; }
+
+  footer { border-top: 1px solid var(--line); padding: 22px 0 40px; color: var(--muted); font-size: 0.92rem; }
+  footer ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 26px; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 960px) {
+    .studio { grid-template-columns: minmax(0, 1fr); }
+    .screen { min-height: 320px; }
+    .kpis { grid-template-columns: repeat(3, 1fr); row-gap: 14px; }
+    .kpis div:nth-child(4) { border-left: 0; padding-left: 0; }
+    .mon-grid { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr; }
+    .steps li { display: grid; grid-template-columns: 38px 1fr; padding: 12px 0; border-top-width: 1px; }
+    .steps li::before { margin: 0; grid-row: span 2; }
+  }
+  @media (max-width: 560px) {
+    .top { flex-wrap: wrap; }
+    .top nav { width: 100%; justify-content: space-between; }
+    .screen { padding: 26px 22px; }
+    .beam { inset: -16px; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .kpis div:nth-child(odd) { border-left: 0; padding-left: 0; }
+    .kpis div:nth-child(4) { border-left: 1px solid var(--line); padding-left: 18px; }
+    .prob { grid-template-columns: 5rem 1fr 4.2rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/" aria-label="Critique-mètre, accueil">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+        <circle cx="10" cy="11" r="7" fill="none" stroke="#f5b83d" stroke-width="2.5"/>
+        <circle cx="24" cy="11" r="5" fill="none" stroke="#f5b83d" stroke-width="2.5"/>
+        <rect x="4" y="19" width="20" height="11" rx="2" fill="#f5b83d"/>
+        <path d="M24 22l7-3v11l-7-3z" fill="#f5b83d"/>
+      </svg>
+      <strong>Critique-mètre</strong>
+    </a>
+    <nav aria-label="Navigation">
+      <span class="model-chip">Modèle <b id="version">…</b></span>
+      <a href="#monitoring">Monitoring</a>
+      <a href="/docs">API</a>
+    </nav>
+  </header>
+
+  <section class="intro">
+    <h1>Votre critique de film, lue par un réseau de neurones.</h1>
+    <p>Un modèle DistilBERT lit le texte en entier et dit s'il est positif ou négatif, avec son niveau de confiance.</p>
+  </section>
+
+  <section class="studio" aria-label="Analyse d'une critique">
+    <form class="composer" id="form" novalidate>
+      <label for="review">Votre critique</label>
+      <textarea id="review" name="review" maxlength="5000"
+        placeholder="Exemple : Un scénario captivant du début à la fin, et des acteurs excellents."></textarea>
+      <div class="meta-row"><span id="count">0 caractère</span><span id="shortcut">Ctrl + Entrée pour analyser</span></div>
+      <div class="examples" id="examples"></div>
+      <button class="go" id="go" type="submit">Analyser la critique</button>
+      <p class="error" id="error" role="alert"></p>
+    </form>
+
+    <div class="theatre" id="theatre">
+      <div class="beam" aria-hidden="true"></div>
+      <div class="screen" aria-live="polite">
+        <p class="empty" id="empty">Écrivez ou choisissez une critique : le verdict s'affiche sur cet écran.</p>
+        <div class="verdict" id="verdict" hidden>
+          <p class="v-word" id="vWord"></p>
+          <p class="v-conf"><b id="vConf"></b> de confiance</p>
+          <div class="scale">
+            <div class="track"><div class="marker" id="marker"></div></div>
+            <div class="ends"><span>Navet</span><span>Chef-d'œuvre</span></div>
+            <p class="scale-note">La position du curseur correspond à la probabilité que la critique soit positive.</p>
+          </div>
+          <div class="probs" id="probs"></div>
+          <p class="warn" id="warn" hidden></p>
+          <p class="facts" id="facts"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pipeline" aria-labelledby="pipe-title">
+    <h2 id="pipe-title">Ce qui se passe pendant l'analyse</h2>
+    <p class="section-lead">Les mêmes étapes qu'à l'entraînement, exécutées sur le serveur à chaque critique.</p>
+    <ol class="steps" id="steps">
+      <li><b>Texte reçu</b><span id="s0">En attente d'une critique</span></li>
+      <li><b>Tokenisation</b><span id="s1">Découpage en sous-mots, puis en nombres</span></li>
+      <li><b>DistilBERT</b><span>6 couches Transformer, exécutées avec ONNX Runtime</span></li>
+      <li><b>Softmax</b><span id="s3">Scores transformés en probabilités</span></li>
+      <li><b>Verdict</b><span id="s4">La classe la plus probable</span></li>
+    </ol>
+  </section>
+
+  <section class="monitor" id="monitoring" aria-labelledby="mon-title">
+    <div class="mon-head">
+      <h2 id="mon-title">Monitoring en direct</h2>
+      <span class="drift" id="drift">Data drift : en attente de données</span>
+    </div>
+    <p class="drift-detail" id="driftDetail">Le serveur enregistre chaque analyse (sans garder le texte) et compare ce qu'il reçoit aux critiques d'entraînement.</p>
+    <dl class="kpis">
+      <div><dt>Analyses</dt><dd id="kTotal">0</dd></div>
+      <div><dt>Latence médiane</dt><dd><span id="kP50">–</span><small>ms</small></dd></div>
+      <div><dt>Latence p95</dt><dd><span id="kP95">–</span><small>ms</small></dd></div>
+      <div><dt>Confiance moyenne</dt><dd id="kConf">–</dd></div>
+      <div><dt>Analyses incertaines</dt><dd id="kLow">–</dd></div>
+      <div><dt>Erreurs</dt><dd id="kErr">0</dd></div>
+    </dl>
+    <div class="mon-grid">
+      <figure>
+        <figcaption>Latence des 50 dernières analyses (ms)</figcaption>
+        <svg class="spark" id="cLat" viewBox="0 0 300 96" preserveAspectRatio="none" role="img" aria-label="Courbe de latence"></svg>
+      </figure>
+      <figure>
+        <figcaption>Confiance des 50 dernières analyses (seuil d'incertitude : 60 %)</figcaption>
+        <svg class="spark" id="cConf" viewBox="0 0 300 96" preserveAspectRatio="none" role="img" aria-label="Courbe de confiance"></svg>
+      </figure>
+      <div>
+        <h3>Vos dernières analyses</h3>
+        <ul class="history" id="history"><li class="none">Aucune analyse pour l'instant.</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <ul>
+      <li><a href="/docs">Documentation de l'API (Swagger)</a></li>
+      <li><a href="/stats">Statistiques brutes en JSON</a></li>
+      <li><a href="/ui/">Interface Gradio</a></li>
+      <li>Projet <i>From Training to Deployment</i>, Mundiapolis</li>
+    </ul>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const NAMES = { positive: "Positif", positif: "Positif", negative: "Négatif", "négatif": "Négatif", negatif: "Négatif", neutral: "Neutre", neutre: "Neutre" };
+  const history = [];
+
+  const kind = (label) => {
+    const l = label.toLowerCase();
+    if (l.startsWith("pos")) return "pos";
+    if (l.startsWith("neg") || l.startsWith("nég")) return "neg";
+    if (l.startsWith("neu")) return "neu";
+    return "other";
+  };
+  const nice = (label) => NAMES[label.toLowerCase()] || label.charAt(0).toUpperCase() + label.slice(1);
+  const pct = (x, d = 0) => (x * 100).toFixed(d).replace(".", ",") + " %";
+  const color = { pos: "var(--pos)", neg: "var(--neg)", neu: "var(--neu)", other: "var(--neu)" };
+
+  // Probabilité "positive" sur une échelle 0..1 (marche pour 2 ou 3 classes)
+  const positivity = (scores) => {
+    let p = 0, n = 0;
+    for (const [k, v] of Object.entries(scores)) {
+      if (kind(k) === "pos") p += v;
+      if (kind(k) === "neg") n += v;
+    }
+    return (p - n + 1) / 2;
+  };
+
+  /* ---------- Démarrage : version du modèle + exemples ---------- */
+  if (/Mac|iPhone|iPad/.test(navigator.platform)) $("shortcut").textContent = "⌘ + Entrée pour analyser";
+  fetch("/health").then((r) => r.json()).then((h) => {
+    $("version").textContent = h.model_version;
+    const ex = h.examples || [];
+    if (ex.length) {
+      const box = $("examples");
+      const p = document.createElement("p");
+      p.textContent = "Ou essayez une de ces critiques :";
+      box.appendChild(p);
+      ex.forEach((t) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "chip"; b.textContent = t; b.title = t;
+        b.addEventListener("click", () => { setText(t); analyse(); });
+        box.appendChild(b);
+      });
+    }
+  }).catch(() => { $("version").textContent = "indisponible"; });
+
+  /* ---------- Saisie ---------- */
+  const review = $("review");
+  const setText = (t) => { review.value = t; updateCount(); };
+  const updateCount = () => {
+    const n = review.value.length;
+    $("count").textContent = n.toLocaleString("fr-FR") + (n > 1 ? " caractères" : " caractère");
+  };
+  review.addEventListener("input", updateCount);
+  review.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); analyse(); }
+  });
+  $("form").addEventListener("submit", (e) => { e.preventDefault(); analyse(); });
+
+  /* ---------- Analyse ---------- */
+  async function analyse() {
+    const text = review.value.trim();
+    $("error").textContent = "";
+    if (!text) { $("error").textContent = "Écrivez une critique avant de lancer l'analyse."; review.focus(); return; }
+    const go = $("go");
+    go.disabled = true; go.textContent = "Analyse en cours…";
+    try {
+      const r = await fetch("/predict", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text })
+      });
+      if (r.status === 422) throw new Error("La critique est vide ou dépasse 5 000 caractères.");
+      if (!r.ok) throw new Error("Le serveur n'a pas pu analyser la critique. Réessayez dans un instant.");
+      const res = await r.json();
+      show(res, text);
+      remember(res, text);
+      refreshStats();
+    } catch (err) {
+      $("error").textContent = err.message.startsWith("Failed") ? "Le serveur ne répond pas. Vérifiez qu'il est lancé." : err.message;
+    } finally {
+      go.disabled = false; go.textContent = "Analyser la critique";
+    }
+  }
+
+  function show(res, text) {
+    const k = kind(res.label);
+    $("empty").hidden = true;
+    $("verdict").hidden = false;
+
+    // Le moment orchestré : le projecteur, le curseur, puis le verdict
+    const theatre = $("theatre");
+    theatre.classList.remove("projecting"); void theatre.offsetWidth; theatre.classList.add("projecting");
+
+    const w = $("vWord");
+    w.className = "v-word " + k;
+    w.textContent = nice(res.label);
+    $("vConf").textContent = pct(res.confidence);
+
+    const m = $("marker");
+    m.classList.toggle("unsure", res.uncertain);
+    requestAnimationFrame(() => { m.style.left = (positivity(res.scores) * 100).toFixed(1) + "%"; });
+
+    const probs = $("probs");
+    probs.innerHTML = "";
+    Object.entries(res.scores).sort((a, b) => b[1] - a[1]).forEach(([label, v]) => {
+      const row = document.createElement("div");
+      row.className = "prob";
+      row.innerHTML = `<span></span><span class="bar"><i></i></span><span class="val"></span>`;
+      row.children[0].textContent = nice(label);
+      row.children[2].textContent = pct(v, 1);
+      const bar = row.querySelector("i");
+      bar.style.background = color[kind(label)];
+      probs.appendChild(row);
+      requestAnimationFrame(() => { bar.style.width = (v * 100).toFixed(1) + "%"; });
+    });
+
+    const warn = $("warn");
+    const notes = [];
+    if (res.uncertain) notes.push("Le modèle hésite (confiance sous 60 %). La critique est peut-être ambiguë, ironique ou hors sujet.");
+    if (res.truncated) notes.push("La critique dépasse la longueur maximale : seul le début a été lu.");
+    warn.hidden = notes.length === 0;
+    warn.textContent = notes.join(" ");
+
+    $("facts").innerHTML = "";
+    [["Temps de calcul", res.latency_ms.toLocaleString("fr-FR") + " ms"], ["Tokens lus", res.n_tokens], ["Version", res.model_version]]
+      .forEach(([a, b]) => {
+        const s = document.createElement("span");
+        s.textContent = a + " "; const bb = document.createElement("b"); bb.textContent = b; s.appendChild(bb);
+        $("facts").appendChild(s);
+      });
+
+    // Les étapes du pipeline s'allument dans l'ordre
+    $("s0").textContent = text.length.toLocaleString("fr-FR") + " caractères";
+    $("s1").textContent = res.n_tokens + " tokens";
+    $("s3").textContent = Object.entries(res.scores).map(([l, v]) => nice(l) + " " + pct(v)).join(", ");
+    $("s4").textContent = nice(res.label) + " en " + res.latency_ms.toLocaleString("fr-FR") + " ms";
+    const steps = [...$("steps").children];
+    steps.forEach((li) => li.classList.remove("lit"));
+    steps.forEach((li, i) => setTimeout(() => li.classList.add("lit"), reduced ? 0 : 140 * i));
+  }
+
+  /* ---------- Historique local ---------- */
+  function remember(res, text) {
+    history.unshift({ res, text });
+    history.splice(6);
+    const ul = $("history");
+    ul.innerHTML = "";
+    history.forEach(({ res, text }) => {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.innerHTML = `<span class="pill ${kind(res.label)}"></span><span class="snip"></span>`;
+      b.children[0].textContent = nice(res.label) + " " + pct(res.confidence);
+      b.children[1].textContent = text;
+      b.title = "Remettre cette critique dans le champ";
+      b.addEventListener("click", () => { setText(text); review.focus(); window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" }); });
+      li.appendChild(b); ul.appendChild(li);
+    });
+  }
+
+  /* ---------- Monitoring ---------- */
+  function spark(svg, values, { max, threshold, stroke }) {
+    const W = 300, H = 96, pad = 8;
+    if (!values.length) { svg.innerHTML = ""; return; }
+    const top = max ?? (Math.max(...values) * 1.15 || 1);
+    const x = (i) => values.length === 1 ? W / 2 : (i / (values.length - 1)) * W;
+    const y = (v) => H - pad - (Math.min(v, top) / top) * (H - pad * 2);
+    const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    let html = `<polygon class="area" fill="${stroke}" points="0,${H} ${pts} ${W},${H}"/>` +
+               `<polyline fill="none" stroke="${stroke}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" points="${pts}"/>`;
+    if (threshold != null) html += `<line class="thr" x1="0" x2="${W}" y1="${y(threshold)}" y2="${y(threshold)}" vector-effect="non-scaling-stroke"/>`;
+    svg.innerHTML = html;
+  }
+
+  async function refreshStats() {
+    try {
+      const s = await (await fetch("/stats")).json();
+      $("kTotal").textContent = s.total_requests.toLocaleString("fr-FR");
+      $("kErr").textContent = s.errors;
+      if (s.latency_ms) {
+        $("kP50").textContent = s.latency_ms.p50.toLocaleString("fr-FR");
+        $("kP95").textContent = s.latency_ms.p95.toLocaleString("fr-FR");
+        $("kConf").textContent = pct(s.mean_confidence);
+        $("kLow").textContent = pct(s.low_confidence_rate);
+        spark($("cLat"), s.recent.latency_ms, { stroke: "#f5b83d" });
+        spark($("cConf"), s.recent.confidence, { max: 1, threshold: 0.6, stroke: "#2fb37e" });
+      }
+      const d = s.drift || {};
+      const el = $("drift");
+      const alert = (d.status || "").startsWith("ALERTE");
+      el.className = "drift" + (alert ? " alert" : d.status === "ok" ? " ok" : "");
+      el.textContent = alert ? "Data drift possible" : d.status === "ok" ? "Pas de data drift détecté" : "Data drift : " + (d.status || "en attente");
+      const det = [];
+      if (d.current_mean_tokens != null)
+        det.push(`Les textes reçus font en moyenne ${d.current_mean_tokens} tokens, contre ${d.reference_mean_tokens} pour les critiques d'entraînement.`);
+      if (d.current_mean_confidence != null)
+        det.push(`Confiance moyenne actuelle : ${pct(d.current_mean_confidence)}, contre ${pct(d.reference_mean_confidence)} sur le jeu de test.`);
+      if (det.length) $("driftDetail").textContent = det.join(" ");
+    } catch (_) { /* le monitoring ne doit jamais bloquer la page */ }
+  }
+  refreshStats();
+  setInterval(() => { if (document.visibilityState === "visible") refreshStats(); }, 5000);
+})();
+</script>
+</body>
+</html>

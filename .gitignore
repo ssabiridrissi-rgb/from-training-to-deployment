@@ -221,3 +221,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Partie 4 : déploiement ---
+# Les modèles sont trop lourds pour GitHub (limite 100 Mo) : ils vont sur Hugging Face
+models/*
+!models/.gitkeep
+*.onnx
+# Base SQLite du monitoring (générée à l'exécution)
+data/monitoring*.db
