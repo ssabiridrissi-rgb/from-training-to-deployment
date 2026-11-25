@@ -12,7 +12,8 @@ Démarrage rapide :
 
 ```bash
 uv venv --python 3.12 && source .venv/bin/activate
-uv pip install -r requirements-dev.txt -r requirements-export.txt
+uv pip install -r requirements-dev.txt
+uv pip install -r requirements-export.txt
 python scripts/export_onnx.py                     # crée models/ (modèle ONNX)
 docker build -f docker/Dockerfile -t sentiment-api .
 docker run -p 7860:7860 sentiment-api             # http://localhost:7860

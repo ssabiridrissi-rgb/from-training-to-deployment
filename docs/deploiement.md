@@ -62,6 +62,17 @@ En production, la même image se déploierait sur Google Cloud Run, Render ou AW
 | `scripts/deploy_space.py` | Déploiement sur Hugging Face Spaces (compte PRO requis) |
 | `tests/test_api.py` | 11 tests pytest |
 | `.github/workflows/ci.yml` | À chaque push : tests, build Docker, test du conteneur |
+| `requirements-api.in`, `requirements-dev.in` | Les dépendances qu'on choisit (à modifier à la main) |
+| `requirements-api.txt`, `requirements-dev.txt` | Versions exactes + hashes, générées à partir des `.in` (ne pas modifier à la main) |
+
+Pour ajouter une dépendance : l'ajouter dans le `.in`, puis régénérer les fichiers verrouillés :
+
+```bash
+uv pip compile requirements-api.in --universal --python-version 3.12 --generate-hashes --no-header -o requirements-api.txt
+uv pip compile requirements-dev.in --universal --python-version 3.12 --generate-hashes --no-header -o requirements-dev.txt
+```
+
+Docker et la CI installent avec `--require-hashes --only-binary :all:` : uniquement ces versions exactes, et uniquement des wheels déjà compilées (aucun script d'installation exécuté). C'est ce que demande SonarCloud.
 
 ## 4. Le contrat avec les phases 2 et 3
 

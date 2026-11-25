@@ -12,9 +12,10 @@ ENV HOME=/home/user \
     MONITOR_DB=/home/user/app/data/monitoring.db
 WORKDIR /home/user/app
 
-# 1) Dépendances d'abord (mises en cache tant que requirements-api.txt ne change pas)
+# 1) Dépendances d'abord (mises en cache tant que requirements-api.txt ne change pas).
+#    Versions verrouillées avec leurs hashes + uniquement des wheels (pas de setup.py exécuté).
 COPY --chown=user requirements-api.txt .
-RUN pip install --no-cache-dir --user -r requirements-api.txt
+RUN pip install --no-cache-dir --user --require-hashes --only-binary :all: -r requirements-api.txt
 
 # 2) Puis le code et le modèle
 COPY --chown=user api ./api
