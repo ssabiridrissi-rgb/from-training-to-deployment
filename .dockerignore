@@ -1,0 +1,8 @@
+# Seuls api/, app/, models/ et requirements-api.txt vont dans l'image
+*
+!api/
+!app/
+!models/
+!requirements-api.txt
+**/__pycache__
+models/model_fp32.onnx
