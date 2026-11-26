@@ -1,0 +1,57 @@
+{
+  "model": "distilbert-base-multilingual-cased",
+  "version": "v1.0",
+  "data_source": "CSV nettoyé de la personne 1 (GitHub)",
+  "train_size": 20000,
+  "epochs": 2,
+  "max_len": 512,
+  "lr": 2e-05,
+  "batch": 16,
+  "grad_acc": 2,
+  "train_minutes": 9.0,
+  "val_accuracy": 0.9276,
+  "test_accuracy": 0.9285,
+  "test_f1": 0.9251,
+  "test_roc_auc": 0.9798,
+  "test_size": 20000,
+  "onnx_fp32": {
+    "accuracy_2000": 0.9365,
+    "size_mb": 541.4,
+    "median_ms": 120.7
+  },
+  "onnx_int8": {
+    "accuracy_2000": 0.9165,
+    "size_mb": 135.7,
+    "median_ms": 83.7
+  },
+  "deployed": "FP32",
+  "pytorch_onnx_agreement": "194/200",
+  "demo": [
+    {
+      "text": "Ce film est magnifique, j'ai adoré ! Les acteurs sont excellents.",
+      "label": "positif",
+      "confidence": 0.9954
+    },
+    {
+      "text": "Une histoire décevante et un film ennuyeux. J'ai failli partir avant la fin.",
+      "label": "négatif",
+      "confidence": 0.996
+    },
+    {
+      "text": "Pas mal du tout, je ne m'attendais pas à passer un aussi bon moment.",
+      "label": "positif",
+      "confidence": 0.9815
+    },
+    {
+      "text": "Génial, encore un remake inutile. Bravo, vraiment.",
+      "label": "négatif",
+      "confidence": 0.6857
+    },
+    {
+      "text": "Le début est lent, mais la deuxième moitié rattrape largement le tout.",
+      "label": "négatif",
+      "confidence": 0.9854
+    }
+  ],
+  "total_minutes": 24.9
+}

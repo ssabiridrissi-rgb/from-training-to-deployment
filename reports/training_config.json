@@ -1,0 +1,16 @@
+{
+  "model": "distilbert-base-multilingual-cased",
+  "max_length": 512,
+  "train_size": 20000,
+  "epochs": 2,
+  "batch_size": 16,
+  "gradient_accumulation": 2,
+  "learning_rate": 2e-05,
+  "weight_decay": 0.01,
+  "seed": 42,
+  "selection": "f1",
+  "labels": {
+    "0": "négatif",
+    "1": "positif"
+  }
+}
